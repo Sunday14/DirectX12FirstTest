@@ -35,12 +35,30 @@ using namespace Microsoft::WRL;
 
 const uint8_t g_NumFrames = 3;
 
+
+//use a software rasterizer (Windows Advanced Rasterization Platform - WARP) https://docs.microsoft.com/en-us/windows/win32/direct3darticles/directx-warp?redirectedfrom=MSDN
 bool g_UesWarp = false;
 
 uint32_t g_ClientWidth = 1280;
 uint32_t g_ClientHight = 720;
 
 bool g_IsInitialized = false;
+
+HWND g_hWnd;
+
+RECT g_WindowRect;
+
+ComPtr<ID3D12Device2> g_Device;
+ComPtr<ID3D12CommandQueue> g_CommandQueue;
+ComPtr<IDXGISwapChain4> g_SwapChain;
+ComPtr<ID3D12Resource> g_BackBuffers[g_NumFrames];
+ComPtr<ID3D12GraphicsCommandList> g_CommandList;
+ComPtr<ID3D12CommandAllocator> g_CommandAllocators[g_NumFrames];
+ComPtr<ID3D12DescriptorHeap> g_RTVDescriptorHeap;
+
+UINT g_RTVDescriptorSize;
+UINT g_CurrentBackBufferIndex;
+
 
 void main()
 {
