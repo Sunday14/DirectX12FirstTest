@@ -236,6 +236,71 @@ ComPtr<ID3D12Device> CreateDevice(ComPtr<IDXGIAdapter4> adapter)
 	return m_device;
 }
 
+ComPtr<ID3D12CommandQueue> CreateCommandQueue(ComPtr<ID3D12Device> m_device,D3D12_COMMAND_LIST_TYPE type)
+{
+	ComPtr<ID3D12CommandQueue> d3d12CommandQueue;
+	D3D12_COMMAND_QUEUE_DESC desc = {};
+	desc.Type = type;
+	desc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
+	ThrowIfFailed(m_device->CreateCommandQueue(&desc,IID_PPV_ARGS(&d3d12CommandQueue)));
+	return d3d12CommandQueue;
+}
+
+ComPtr<IDXGISwapChain4> CreateSwapChain(HWND hWnd,ComPtr<ID3D12Device> device,ComPtr<ID3D12CommandQueue> m_commandQueue,uint32_t width,uint32_t height,uint32_t bufferCount)
+{
+	//D3D12_FEATURE_DATA_MULTISAMPLE_QUALITY_LEVELS msQualityLevels;
+	/*msQualityLevels.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+	msQualityLevels.Flags = D3D12_MULTISAMPLE_QUALITY_LEVELS_FLAG_NONE;
+	msQualityLevels.NumQualityLevels = 0;
+	ThrowIfFailed(device->CheckFeatureSupport(D3D12_FEATURE_MULTISAMPLE_QUALITY_LEVELS, &msQualityLevels, sizeof(msQualityLevels)));*/
+	
+	//assert(msQualityLevels.NumQualityLevels > 0 && "Unexpected MSAA quality level");
+
+	ComPtr<IDXGISwapChain1> swapChain;
+	DXGI_SWAP_CHAIN_DESC1 swapChainDesc = {};
+	swapChainDesc.BufferCount = bufferCount;
+	swapChainDesc.Width = width;
+	swapChainDesc.Height = height;
+	swapChainDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+	swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+	swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+	swapChainDesc.SampleDesc.Count = 1;
+
+	ComPtr<IDXGIFactory4> factory;
+	UINT dxgiFactoryFlags = 0;
+#if defined(_DEBUG)
+	dxgiFactoryFlags |= DXGI_CREATE_FACTORY_DEBUG;
+#endif
+	ThrowIfFailed(CreateDXGIFactory2(dxgiFactoryFlags, IID_PPV_ARGS(&factory)));
+
+	ThrowIfFailed(factory->CreateSwapChainForHwnd(
+		m_commandQueue.Get(),        // Swap chain needs the queue so that it can force a flush on it.
+		hWnd,
+		&swapChainDesc,
+		nullptr,
+		nullptr,
+		&swapChain
+	));
+
+	ThrowIfFailed(factory->MakeWindowAssociation(hWnd, DXGI_MWA_NO_ALT_ENTER));
+
+	ComPtr<IDXGISwapChain4> m_SwapChain4;
+	ThrowIfFailed(swapChain.As(&m_SwapChain4));
+	return m_SwapChain4;
+}
+
+ComPtr<ID3D12DescriptorHeap> CreateDescriptorHeap(ComPtr<ID3D12Device>m_device,D3D12_DESCRIPTOR_HEAP_TYPE type,uint32_t bufferCount)
+{
+	ComPtr<ID3D12DescriptorHeap> descriptorHeap;
+	D3D12_DESCRIPTOR_HEAP_DESC desc = {};
+	desc.NumDescriptors = bufferCount;
+	desc.Type = type;
+	desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+	ThrowIfFailed(m_device->CreateDescriptorHeap(&desc, IID_PPV_ARGS(&descriptorHeap)));
+	return descriptorHeap;
+
+}
+
 int CALLBACK wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR lpCmdLine, int nCmdShow)
 {
 	// Windows 10 Creators update adds Per Monitor V2 DPI awareness context.
@@ -253,17 +318,16 @@ int CALLBACK wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR lpCmdL
 
 	g_Device = CreateDevice(dxgiAdapter4);
 
-	//g_CommandQueue = CreateCommandQueue(g_Device, D3D12_COMMAND_LIST_TYPE_DIRECT);
+	g_CommandQueue = CreateCommandQueue(g_Device, D3D12_COMMAND_LIST_TYPE_DIRECT);
 
-	//g_SwapChain = CreateSwapChain(g_hWnd, g_CommandQueue,
-		//g_ClientWidth, g_ClientHeight, g_NumFrames);
+	g_SwapChain = CreateSwapChain(g_hWnd, g_Device,g_CommandQueue,g_ClientWidth, g_ClientHeight, g_NumFrames);
 
-	/*g_CurrentBackBufferIndex = g_SwapChain->GetCurrentBackBufferIndex();
+	g_CurrentBackBufferIndex = g_SwapChain->GetCurrentBackBufferIndex();
 
 	g_RTVDescriptorHeap = CreateDescriptorHeap(g_Device, D3D12_DESCRIPTOR_HEAP_TYPE_RTV, g_NumFrames);
 	g_RTVDescriptorSize = g_Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 
-	UpdateRenderTargetViews(g_Device, g_SwapChain, g_RTVDescriptorHeap);*/
+	//UpdateRenderTargetViews(g_Device, g_SwapChain, g_RTVDescriptorHeap);
 
 	for (int i = 0; i < g_NumFrames; ++i)
 	{
