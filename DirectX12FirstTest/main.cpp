@@ -14,9 +14,9 @@
 
 // In order to define a function called CreateWindow, the Windows macro needs to
 // be undefined.
-#if defined(CreateWindow)
-#undef CreateWindow
-#endif
+//#if defined(CreateWindow)
+//#undef CreateWindow
+//#endif
 
 // Windows Runtime Library. Needed for Microsoft::WRL::ComPtr<> template class.
 #include <wrl.h>
@@ -56,7 +56,7 @@ HWND g_hWnd;
 RECT g_WindowRect;
 
 // DirectX 12 Objects
-ComPtr<ID3D12Device2> g_Device;
+ComPtr<ID3D12Device> g_Device;
 ComPtr<ID3D12CommandQueue> g_CommandQueue;
 ComPtr<IDXGISwapChain4> g_SwapChain;
 ComPtr<ID3D12Resource> g_BackBuffers[g_NumFrames];
@@ -120,9 +120,10 @@ void EnableDebugLayer()
 #endif
 }
 
-void RegisterWindowClass(HINSTANCE hInst, const wchar_t* windowClassName)
+HWND WinWindow(HINSTANCE hInst, WCHAR* windowTitle)
 {
-	// Register a window class for creating our render window with.
+	ParseCommandLineArguments();
+	EnableDebugLayer();
 	WNDCLASSEXW windowClass = {};
 
 	windowClass.cbSize = sizeof(WNDCLASSEXW);
@@ -135,20 +136,17 @@ void RegisterWindowClass(HINSTANCE hInst, const wchar_t* windowClassName)
 	windowClass.hCursor = ::LoadCursor(NULL, IDC_ARROW);
 	windowClass.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
 	windowClass.lpszMenuName = NULL;
-	windowClass.lpszClassName = windowClassName;
+	windowClass.lpszClassName =L"Dx12";
 	windowClass.hIconSm = ::LoadIcon(hInst, NULL); //  MAKEINTRESOURCE(APPLICATION_ICON));
 
-	static HRESULT hr = ::RegisterClassExW(&windowClass);
+	static HRESULT hr = RegisterClassEx(&windowClass);
 	assert(SUCCEEDED(hr));
-}
 
-HWND CreateWindow(const wchar_t* windowClassName, HINSTANCE hInst,
-	const wchar_t* windowTitle, uint32_t width, uint32_t height)
-{
+
 	int screenWidth = ::GetSystemMetrics(SM_CXSCREEN);
 	int screenHeight = ::GetSystemMetrics(SM_CYSCREEN);
 
-	RECT windowRect = { 0, 0, static_cast<LONG>(width), static_cast<LONG>(height) };
+	RECT windowRect = { 0, 0, static_cast<LONG>(g_ClientWidth), static_cast<LONG>(g_ClientHeight) };
 	::AdjustWindowRect(&windowRect, WS_OVERLAPPEDWINDOW, FALSE);
 
 	int windowWidth = windowRect.right - windowRect.left;
@@ -158,9 +156,9 @@ HWND CreateWindow(const wchar_t* windowClassName, HINSTANCE hInst,
 	int windowX = std::max<int>(0, (screenWidth - windowWidth) / 2);
 	int windowY = std::max<int>(0, (screenHeight - windowHeight) / 2);
 
-	HWND hWnd = ::CreateWindowExW(
-		NULL,
-		windowClassName,
+	HWND hWnd = CreateWindow(
+		//NULL,
+		windowClass.lpszClassName,
 		windowTitle,
 		WS_OVERLAPPEDWINDOW,
 		windowX,
@@ -175,9 +173,10 @@ HWND CreateWindow(const wchar_t* windowClassName, HINSTANCE hInst,
 
 	assert(hWnd && "Failed to create window");
 
+	GetWindowRect(hWnd, &g_WindowRect);
+
 	return hWnd;
 }
-
 
 LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
@@ -194,31 +193,65 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 	return DefWindowProc(hwnd, message, wParam, lParam);
 }
 
+ComPtr<IDXGIAdapter4> GetAdapter(bool useWarp)
+{
+
+	ComPtr<IDXGIFactory4> factory;
+	UINT dxgiFactoryFlags = 0;
+#if defined(_DEBUG)
+	dxgiFactoryFlags |= DXGI_CREATE_FACTORY_DEBUG;
+#endif
+	ThrowIfFailed(CreateDXGIFactory2(dxgiFactoryFlags, IID_PPV_ARGS(&factory)));
+	ComPtr<IDXGIAdapter4> dxgiAdapter4;
+	if (useWarp) {
+		ComPtr<IDXGIAdapter> warpAdapter;
+		ThrowIfFailed(factory->EnumWarpAdapter(IID_PPV_ARGS(&warpAdapter)));
+		ThrowIfFailed(warpAdapter.As(&dxgiAdapter4));
+	}
+	else{
+		ComPtr<IDXGIAdapter1> hardwareAdapter;
+		for (int i = 0; factory->EnumAdapters1(i, &hardwareAdapter) != DXGI_ERROR_NOT_FOUND; i++) {
+			DXGI_ADAPTER_DESC1 adpterDesc;
+			hardwareAdapter->GetDesc1(&adpterDesc);
+			if (adpterDesc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE)
+			{
+				continue;
+			}
+			if (SUCCEEDED(D3D12CreateDevice(hardwareAdapter.Get(),D3D_FEATURE_LEVEL_11_0,__uuidof(ID3D12Device),nullptr )))
+			{
+				break;
+			}
+		}
+		ThrowIfFailed(hardwareAdapter.As(&dxgiAdapter4));
+		
+	}
+	return dxgiAdapter4;
+}
+
+ComPtr<ID3D12Device> CreateDevice(ComPtr<IDXGIAdapter4> adapter)
+{
+	ComPtr<ID3D12Device> m_device;
+
+	ThrowIfFailed(D3D12CreateDevice(adapter.Get(), D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&m_device)));
+	return m_device;
+}
+
 int CALLBACK wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR lpCmdLine, int nCmdShow)
 {
 	// Windows 10 Creators update adds Per Monitor V2 DPI awareness context.
 	// Using this awareness context allows the client area of the window 
 	// to achieve 100% scaling while still allowing non-client window content to 
 	// be rendered in a DPI sensitive fashion.
+
 	SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
 
-	// Window class name. Used for registering / creating the window.
-	const wchar_t* windowClassName = L"DX12WindowClass";
-	ParseCommandLineArguments();
-	EnableDebugLayer();
+	g_hWnd = WinWindow(hInstance, L"DirectX 12 First Test");
 
 	//g_TearingSupported = CheckTearingSupport();
 
-	RegisterWindowClass(hInstance, windowClassName);
-	g_hWnd = CreateWindow(windowClassName, hInstance, L"Cearning DirectX 12",
-		g_ClientWidth, g_ClientHeight);
+	ComPtr<IDXGIAdapter4> dxgiAdapter4 = GetAdapter(g_UseWarp);
 
-	// Initialize the global window rect variable.
-	::GetWindowRect(g_hWnd, &g_WindowRect);
-
-	//ComPtr<IDXGIAdapter4> dxgiAdapter4 = GetAdapter(g_UseWarp);
-
-	//g_Device = CreateDevice(dxgiAdapter4);
+	g_Device = CreateDevice(dxgiAdapter4);
 
 	//g_CommandQueue = CreateCommandQueue(g_Device, D3D12_COMMAND_LIST_TYPE_DIRECT);
 
@@ -242,9 +275,9 @@ int CALLBACK wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR lpCmdL
 	//g_Fence = CreateFence(g_Device);
 	//g_FenceEvent = CreateEventHandle();
 
-	g_IsInitialized = true;
+	//g_IsInitialized = true;
 
-	::ShowWindow(g_hWnd, SW_SHOW);
+	ShowWindow(g_hWnd, SW_SHOW);
 
 	MSG msg = {};
 	while (msg.message != WM_QUIT)
@@ -259,7 +292,7 @@ int CALLBACK wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR lpCmdL
 	// Make sure the command queue has finished all commands before closing.
 	//Flush(g_CommandQueue, g_Fence, g_FenceValue, g_FenceEvent);
 
-	::CloseHandle(g_FenceEvent);
+	//::CloseHandle(g_FenceEvent);
 
 	return 0;
 }
