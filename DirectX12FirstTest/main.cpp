@@ -301,6 +301,30 @@ ComPtr<ID3D12DescriptorHeap> CreateDescriptorHeap(ComPtr<ID3D12Device>m_device,D
 
 }
 
+void UpdateRenderTargetViews(ComPtr<ID3D12Device> m_device, ComPtr<IDXGISwapChain4> m_swapchain, ComPtr<ID3D12DescriptorHeap> m_descriptorheap)
+{
+	UINT rtvsize = m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_descriptorheap->GetCPUDescriptorHandleForHeapStart());
+	for (int i = 0; i < g_NumFrames; ++i)
+	{
+		ThrowIfFailed(m_swapchain->GetBuffer(i,IID_PPV_ARGS(&g_BackBuffers[i])));
+		m_device->CreateRenderTargetView(g_BackBuffers[i].Get(),nullptr,rtvHandle);
+		rtvHandle.Offset(rtvsize);
+	}
+}
+
+ComPtr<ID3D12CommandAllocator> CreateCommandAllocator(ComPtr<ID3D12Device> m_device,D3D12_COMMAND_LIST_TYPE type)
+{
+	ComPtr<ID3D12CommandAllocator> commandAllocator;
+	ThrowIfFailed(m_device->CreateCommandAllocator(type,IID_PPV_ARGS(&commandAllocator)));
+	return commandAllocator;
+}
+
+ComPtr<ID3D12CommandList> CreateCommandList(ComPtr<ID3D12Device> m_device,ComPtr<ID3D12CommandAllocator> m_commandAllocator,D3D12_COMMAND_LIST_TYPE type)
+{
+
+}
+
 int CALLBACK wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR lpCmdLine, int nCmdShow)
 {
 	// Windows 10 Creators update adds Per Monitor V2 DPI awareness context.
@@ -327,14 +351,13 @@ int CALLBACK wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR lpCmdL
 	g_RTVDescriptorHeap = CreateDescriptorHeap(g_Device, D3D12_DESCRIPTOR_HEAP_TYPE_RTV, g_NumFrames);
 	g_RTVDescriptorSize = g_Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 
-	//UpdateRenderTargetViews(g_Device, g_SwapChain, g_RTVDescriptorHeap);
+	UpdateRenderTargetViews(g_Device, g_SwapChain, g_RTVDescriptorHeap);
 
 	for (int i = 0; i < g_NumFrames; ++i)
 	{
-		//g_CommandAllocators[i] = CreateCommandAllocator(g_Device, D3D12_COMMAND_LIST_TYPE_DIRECT);
+		g_CommandAllocators[i] = CreateCommandAllocator(g_Device, D3D12_COMMAND_LIST_TYPE_DIRECT);
 	}
-	//g_CommandList = CreateCommandList(g_Device,
-		//g_CommandAllocators[g_CurrentBackBufferIndex], D3D12_COMMAND_LIST_TYPE_DIRECT);
+	g_CommandList = CreateCommandList(g_Device,g_CommandAllocators[g_CurrentBackBufferIndex], D3D12_COMMAND_LIST_TYPE_DIRECT);
 
 	//g_Fence = CreateFence(g_Device);
 	//g_FenceEvent = CreateEventHandle();
