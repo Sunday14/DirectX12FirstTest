@@ -63,6 +63,7 @@ ComPtr<ID3D12Resource> g_BackBuffers[g_NumFrames];
 ComPtr<ID3D12GraphicsCommandList> g_CommandList;
 ComPtr<ID3D12CommandAllocator> g_CommandAllocators[g_NumFrames];
 ComPtr<ID3D12DescriptorHeap> g_RTVDescriptorHeap;
+ComPtr<ID3D12RootSignature> g_rootSignature;
 UINT g_RTVDescriptorSize;
 UINT g_CurrentBackBufferIndex;
 
@@ -357,6 +358,15 @@ int CALLBACK wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR lpCmdL
 	{
 		g_CommandAllocators[i] = CreateCommandAllocator(g_Device, D3D12_COMMAND_LIST_TYPE_DIRECT);
 	}
+	CD3DX12_ROOT_SIGNATURE_DESC rootSignatureDesc;
+	rootSignatureDesc.Init(0,nullptr,0,nullptr, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
+	ComPtr<ID3DBlob> signature;
+	ComPtr<ID3DBlob> error;
+	ThrowIfFailed(D3D12SerializeRootSignature(&rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1,&signature,&error));
+	ThrowIfFailed(g_Device->CreateRootSignature(0,signature->GetBufferPointer(),signature->GetBufferSize(),IID_PPV_ARGS(&g_rootSignature)));
+
+
+
 	g_CommandList = CreateCommandList(g_Device,g_CommandAllocators[g_CurrentBackBufferIndex], D3D12_COMMAND_LIST_TYPE_DIRECT);
 
 	//g_Fence = CreateFence(g_Device);
